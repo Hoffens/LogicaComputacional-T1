@@ -3,7 +3,6 @@
  * 
  *
  */
-
 #define EMPTY   0
 #define NORMAL  1
 #define LEFTPARENTHESIS 35
@@ -20,6 +19,7 @@ struct Stack {
     unsigned char *data;
 };
 
+
 struct PostfixExpression {
     int n;
     unsigned char *expression;
@@ -28,12 +28,18 @@ struct PostfixExpression {
 
 struct Stack stack;
 struct PostfixExpression postfixExp;   // expresion infix convertida a postfix
-
 int variablesAmount = 0;
 int delimiterSymbolAmount = 0;
 
+
+// Functions definitions
+int StatusStack(struct Stack *a);
+void InitStack(struct Stack *a);
 unsigned char Pop(struct Stack *a);
 void Push(struct Stack *a, unsigned char c);
+void InfixToPostfix(int option);
+void AddItemToList(struct PostfixExpression *List, unsigned char c);
+void AddDisjOrConj(unsigned char c);
 
 %}
 
@@ -45,7 +51,6 @@ conjuction \\vee
 implication \\rightarrow
 variable [a-z]_\{[1-9][0-9]*\}
 delimitersymbol ${2}
-
 
 %%
 {delimitersymbol}           InfixToPostfix(0);
@@ -61,107 +66,78 @@ delimitersymbol ${2}
 
 void InfixToPostfix(int option) {
 
-    
     unsigned int i;
-    unsigned char var; //128
+    unsigned char var; 
+    unsigned char exp[yyleng];   
+    char aux;
+    int varr = 0;
+    int c = 0;
 
-    if (option == 0)    // es delimitador
-    {  
-        delimiterSymbolAmount++;
-
-        if (delimiterSymbolAmount == 2)     // ya se termino de evaluar la expresion
-        {
-            // sacamos todo lo de la pila y pusheamos a postfix exp
-            
-            while (StatusStack(&stack) != EMPTY)   // mientras la pila no este vacia
+    switch (option)
+    {
+        case 0:     // caso delimitador    ($$)
+            delimiterSymbolAmount++;
+            if (delimiterSymbolAmount == 2)     // ya se termino de evaluar la expresion
             {
-                unsigned char symbol = Pop(&stack);
-
-                if (symbol != LEFTPARENTHESIS)  // si no es parentesis metemos a postfixexp
+                // sacamos todo lo de la pila y pusheamos a postfix exp
+                
+                while (StatusStack(&stack) != EMPTY)   // mientras la pila no este vacia
                 {
-                    postfixExp.n++;
-                    postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
-                    postfixExp.expression[postfixExp.n - 1] = symbol;
+                    var = Pop(&stack);
+                    if (var != LEFTPARENTHESIS)  // si no es parentesis metemos a postfixexp
+                    {
+                        AddItemToList(&postfixExp, var);
+                    }
+                }
+                
+                printf("postfix => ");    //imprimir exp en postfix
+                for (i = 0; i < postfixExp.n; i++)
+                {
+                    printf("%d ", postfixExp.expression[i]);
                 }
             }
-            
-            printf("postfix => ");    //imprimir exp en postfix
-            for (i = 0; i < postfixExp.n; i++)
+            break;
+
+        case 1:     // caso variable ( v_{1} ... v_{32} )
+            strcpy(exp, yytext);
+            do
             {
-                printf("%d ", postfixExp.expression[i]);
-            }
-            //printf("\n STACK: ");
-            
-            /*
-            while (stack.top != -1)
+                aux = exp[c];
+                if (aux == '{')
+                    c++;
+                aux = exp[c];
+
+                if(aux >='0' && aux <='9')
+                    varr=varr*10+aux-48;
+
+                c++; 
+            } while ( aux!='}' );
+
+            var = varr;
+            AddItemToList(&postfixExp, var);
+            break;
+
+        case 2:     // caso parentesis izquierdo
+            Push(&stack, LEFTPARENTHESIS);
+            break;
+
+        case 3:     // caso parentesis derecho 
+            while (StatusStack(&stack) != EMPTY)    // mientras la pila no este vacia
             {
-                unsigned char xd = Pop(&stack);
-                printf("%d ", xd);
+                if (stack.data[stack.top] != LEFTPARENTHESIS) // mientras no encontremos un parentesis izq
+                {
+                    var = Pop(&stack);
+                    AddItemToList(&postfixExp, var);
+                }
+                else
+                {
+                    Pop(&stack); // encontramos parentesis izq, lo sacamos de la pila
+                    break;
+                }
             }
-            */
-        }
-    } 
-    else if (option == 1) // es variable
-    {   
+            break;
 
-        unsigned char exp[yyleng];   
-        unsigned char value;
-        strcpy(exp, yytext);
-        postfixExp.n++;
-
-        // fix it
-        char aux;
-        int varr=0;
-        int c=0;
-        do
-        {
-            aux = exp[c];
-            if (aux == '{')
-                c++;
-            aux = exp[c];
-
-            if(aux >='0' && aux <='9')
-                varr=varr*10+aux-48;
-
-            c++; 
-        } while ( aux!='}' );
-
-        var = varr;
-
-        if (postfixExp.expression == NULL)  // expresion vacia
-            postfixExp.expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
-        else
-            postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
-
-        postfixExp.expression[postfixExp.n - 1] = var;
-        
-    } 
-    else if (option == 2)   // parentesis izq
-    {   
-        Push(&stack, LEFTPARENTHESIS);
-    }
-    
-    else if (option == 3)   // parentesis der
-    {
-        while (StatusStack(&stack) != EMPTY)    // mientras la pila no este vacia
-        {
-            if (stack.data[stack.top] != LEFTPARENTHESIS) // mientras no encontremos un parentesis izq
-            {
-                postfixExp.n++;
-                postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
-                postfixExp.expression[postfixExp.n - 1] = Pop(&stack);
-            }
-            else
-            {
-                Pop(&stack); // encontramos parentesis izq, lo sacamos de la pila
-                break;
-            }
-        }
-    } 
-    else    // operadores
-    {   
-        if (option == 4)    // operador negacion
-        {
+        case 4:     // caso negacion (\neg)
             if (StatusStack(&stack) != EMPTY)
             {
                 if (stack.data[stack.top] != NEG)   
@@ -174,14 +150,8 @@ void InfixToPostfix(int option) {
                     {
                         if (stack.data[stack.top] == NEG) 
                         {
-                            postfixExp.n++;
-
-                            if (postfixExp.expression == NULL)
-                                postfixExp.expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
-                            else
-                                postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
-                                
-                            postfixExp.expression[postfixExp.n - 1] = Pop(&stack);
+                            var = Pop(&stack);
+                            AddItemToList(&postfixExp, var);
                         }
                         else   // parentesis izq u operador de menor prioridad
                         {
@@ -190,141 +160,26 @@ void InfixToPostfix(int option) {
                         }
                     }
                     if (StatusStack(&stack) == EMPTY)
+                    {
                         Push(&stack, NEG);
+                    }
                 }
             }
             else
             {
                 Push(&stack, NEG);
-            }  
-        }
-        else if (option == 5)   // disjuncion, esto tiene codigo repetido
-        {
-            if (StatusStack(&stack) != EMPTY)
-            {
-                if (stack.data[stack.top] == LEFTPARENTHESIS || stack.data[stack.top] == RIGHTARROW)
-                {
-                    Push(&stack, WEDGE);
-                }
-                else if (stack.data[stack.top] == NEG)    // sacamos la neg del top y la colocamos en la exp.
-                {
-                    while (StatusStack(&stack) != EMPTY)
-                    {   
-                        if (stack.data[stack.top] == NEG || stack.data[stack.top] == WEDGE || stack.data[stack.top] == VEE)
-                        {
-                            postfixExp.n++;
-
-                            if (postfixExp.expression == NULL)
-                                postfixExp.expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
-                            else
-                                postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
-
-                            postfixExp.expression[postfixExp.n - 1] = Pop(&stack);
-                        }
-                        else
-                        {
-                            Push(&stack, WEDGE);
-                            break;
-                        }
-                    }
-                    if (StatusStack(&stack) == EMPTY)
-                        Push(&stack, WEDGE);
-                }
-                else    // wedge o vee
-                {
-                    while (StatusStack(&stack) != EMPTY)
-                    {   
-                        if (stack.data[stack.top] == NEG || stack.data[stack.top] == WEDGE || stack.data[stack.top] == VEE)
-                        {
-                            postfixExp.n++;
-
-                            if (postfixExp.expression == NULL)
-                                postfixExp.expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
-                            else
-                                postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
-
-                            postfixExp.expression[postfixExp.n - 1] = Pop(&stack);
-                        }
-                        else
-                        {
-                            Push(&stack, WEDGE);
-                            break;
-                        }
-                    }
-                    if (StatusStack(&stack) == EMPTY)
-                        Push(&stack, WEDGE);
-                }
             }
-            else
-            {
-                Push(&stack, WEDGE);
-            }
-        }
-        
-        else if (option == 6)   // conjuncion
-        {
-            if (StatusStack(&stack) != EMPTY)
-            {
-                if (stack.data[stack.top] == LEFTPARENTHESIS || stack.data[stack.top] == RIGHTARROW)
-                {
-                    Push(&stack, VEE);
-                }
-                else if (stack.data[stack.top] == NEG)    // sacamos la neg del top y la colocamos en la exp.
-                {
-                    while (StatusStack(&stack) != EMPTY)
-                    {   
-                        if (stack.data[stack.top] == NEG || stack.data[stack.top] == WEDGE || stack.data[stack.top] == VEE)
-                        {
-                            postfixExp.n++;
+            break;
 
-                            if (postfixExp.expression == NULL)
-                                postfixExp.expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
-                            else
-                                postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
+        case 5:     // caso disjuncion (\wedge)
+            AddDisjOrConj(WEDGE);
+            break;
 
-                            postfixExp.expression[postfixExp.n - 1] = Pop(&stack);
-                        }
-                        else // parentesis izq o right arrow
-                        {
-                            Push(&stack, VEE);
-                            break;
-                        }
-                    }
-                    if (StatusStack(&stack) == EMPTY)
-                        Push(&stack, VEE);
-                }
-                else    // wedge o vee
-                {
-                    while (StatusStack(&stack) != EMPTY)
-                    {   
-                        if (stack.data[stack.top] == NEG || stack.data[stack.top] == WEDGE || stack.data[stack.top] == VEE)
-                        {
-                            postfixExp.n++;
+        case 6:     // caso conjuncion (\vee)
+            AddDisjOrConj(VEE);
+            break;
 
-                            if (postfixExp.expression == NULL)
-                                postfixExp.expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
-                            else
-                                postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
-
-                            postfixExp.expression[postfixExp.n - 1] = Pop(&stack);
-                        }
-                        else
-                        {
-                            Push(&stack, VEE);
-                            break;
-                        }
-                    }
-                    if (StatusStack(&stack) == EMPTY)
-                        Push(&stack, VEE);
-                }
-            }
-            else
-            {
-                Push(&stack, VEE);
-            }
-        }
-        else    // implicacion (REVISAR. DEBE ESTAR MAL)
-        {
+        default:    // caso implicacion (\rightarrow)
             if (StatusStack(&stack) != EMPTY)
             {
                 if (stack.data[stack.top] != LEFTPARENTHESIS)
@@ -333,14 +188,8 @@ void InfixToPostfix(int option) {
                     {   
                         if (stack.data[stack.top] != LEFTPARENTHESIS)
                         {
-                            postfixExp.n++;
-
-                            if (postfixExp.expression == NULL)
-                                postfixExp.expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
-                            else
-                                postfixExp.expression = realloc(postfixExp.expression, postfixExp.n);
-
-                            postfixExp.expression[postfixExp.n - 1] = Pop(&stack);
+                            var = Pop(&stack);
+                            AddItemToList(&postfixExp, var);
                         }
                         else
                         {
@@ -349,7 +198,9 @@ void InfixToPostfix(int option) {
                         }
                     }
                     if (StatusStack(&stack) == EMPTY)
+                    {
                         Push(&stack, RIGHTARROW);
+                    }
                 }
                 else
                 {
@@ -360,7 +211,62 @@ void InfixToPostfix(int option) {
             {
                 Push(&stack, RIGHTARROW);
             }
+    }
+}
+
+
+void AddItemToList(struct PostfixExpression *List, unsigned char c)
+{
+    List->n++;
+
+    if (List->expression == NULL)
+    {
+        List->expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
+    }
+    else
+    {
+        List->expression = realloc(List->expression, List->n);
+    }
+
+    List->expression[List->n - 1] = c;
+}
+
+
+void AddDisjOrConj(unsigned char c)
+{   
+    unsigned char var;
+
+    if (StatusStack(&stack) != EMPTY)
+    {
+        if (stack.data[stack.top] == LEFTPARENTHESIS || stack.data[stack.top] == RIGHTARROW)
+        {
+            Push(&stack, c);
         }
+        else    // sacamos la neg del top y la colocamos en la exp.
+        {
+            while (StatusStack(&stack) != EMPTY)
+            {   
+                if (stack.data[stack.top] != LEFTPARENTHESIS && stack.data[stack.top] != RIGHTARROW)
+                {
+                    var = Pop(&stack);
+                    AddItemToList(&postfixExp, var);
+                }
+                else
+                {
+                    Push(&stack, c);
+                    break;
+                }
+            }
+
+            if (StatusStack(&stack) == EMPTY)
+            {
+                Push(&stack, c);
+            }
+        }
+    }
+    else
+    {
+        Push(&stack, c);
     }
 }
 
@@ -373,7 +279,9 @@ void InfixToPostfix(int option) {
 int StatusStack(struct Stack *a) {
 
    if (a->top == -1)
+   {
       return EMPTY;
+   }
    return NORMAL;
 }
 
@@ -396,9 +304,13 @@ void InitStack(struct Stack *a) {
 void Push(struct Stack *a, unsigned char c) {
 
     if (a->data == NULL)
+    {
         a->data = (unsigned char*) malloc(1 * sizeof(unsigned char)); //mejorar
+    }
     else
+    {
         a->data = realloc(a->data, a->n + 1);
+    }
 
     a->n++;
     a->top++;
@@ -413,8 +325,6 @@ void Push(struct Stack *a, unsigned char c) {
 unsigned char Pop(struct Stack *a) {
 
    unsigned char c;
-
-   //printf("%d", a->data[a->top]);
 
    c = a->data[a->top];
    a->top--;
@@ -431,9 +341,10 @@ unsigned char Pop(struct Stack *a) {
  * main function
  *
  */
-main() {
+int main() {
     InitStack(&stack);
     yylex();
+    return 0;
 }  
 
 
