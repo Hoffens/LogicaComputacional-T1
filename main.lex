@@ -1,6 +1,10 @@
 %{
 /*
- * 
+ * Define if a logical expression is tautology, contradiction or contigency
+ *
+ * Authors: Nicolás Fernández Reinoso, Gino Verardi Maturana
+ *
+ * Santiago de Chile, 06/05/2022
  *
  */
 #define EMPTY   0
@@ -26,6 +30,7 @@ struct PostfixExpression {
 };
 
 
+// Global variables
 struct Stack stack;
 struct PostfixExpression postfixExp;   // expresion infix convertida a postfix
 int variablesAmount = 0;
@@ -37,9 +42,10 @@ int StatusStack(struct Stack *a);
 void InitStack(struct Stack *a);
 unsigned char Pop(struct Stack *a);
 void Push(struct Stack *a, unsigned char c);
-void InfixToPostfix(int option);
 void AddItemToList(struct PostfixExpression *List, unsigned char c);
 void AddDisjOrConj(unsigned char c);
+void InfixToPostfix(int option);
+
 
 %}
 
@@ -64,14 +70,144 @@ delimitersymbol ${2}
 %%
 
 
+/*
+ *
+ * Verifies Stack Status
+ *
+ */                            
+int StatusStack(struct Stack *a) {
+
+   if (a->top == -1)
+   {
+      return EMPTY;
+   }
+   return NORMAL;
+}
+
+/*
+ *
+ * Initializes Stack 
+ *
+ */
+void InitStack(struct Stack *a) {
+
+   a->top = -1;
+   a->n = 0;
+}
+
+/*
+ *
+ * Add Element to Stack
+ *
+ */
+void Push(struct Stack *a, unsigned char c) {
+
+    if (a->data == NULL)
+    {
+        a->data = (unsigned char*) malloc(1 * sizeof(unsigned char)); //mejorar
+    }
+    else
+    {
+        a->data = realloc(a->data, a->n + 1);
+    }
+
+    a->n++;
+    a->top++;
+    a->data[a->top] = c;
+}
+ 
+/*
+ *
+ * Remove first Element
+ *
+ */
+unsigned char Pop(struct Stack *a) {
+
+   unsigned char c;
+
+   c = a->data[a->top];
+   a->top--;
+   a->n--;
+
+   a->data = realloc(a->data, a->n);
+
+   return c;
+}
+
+/*
+ *
+ * Add an item to a PostfixExpression list
+ *
+ */ 
+void AddItemToList(struct PostfixExpression *List, unsigned char c)
+{
+    List->n++;
+
+    if (List->expression == NULL)
+    {
+        List->expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
+    }
+    else
+    {
+        List->expression = realloc(List->expression, List->n);
+    }
+
+    List->expression[List->n - 1] = c;
+}
+
+/*
+ *
+ * Add a disjunction or conjunction to a PostfixExpression list
+ *
+ */ 
+void AddDisjOrConj(unsigned char c)
+{   
+    
+    unsigned char var;
+
+    if (StatusStack(&stack) != EMPTY)
+    {
+        if (stack.data[stack.top] == LEFTPARENTHESIS || stack.data[stack.top] == RIGHTARROW)
+        {
+            Push(&stack, c);
+        }
+        else    // sacamos la neg del top y la colocamos en la exp.
+        {
+            while (StatusStack(&stack) != EMPTY)
+            {   
+                if (stack.data[stack.top] != LEFTPARENTHESIS && stack.data[stack.top] != RIGHTARROW)
+                {
+                    var = Pop(&stack);
+                    AddItemToList(&postfixExp, var);
+                }
+                else
+                {
+                    Push(&stack, c);
+                    break;
+                }
+            }
+
+            if (StatusStack(&stack) == EMPTY)
+            {
+                Push(&stack, c);
+            }
+        }
+    }
+    else
+    {
+        Push(&stack, c);
+    }
+}
+
+/*
+ *
+ * Converts an expression from infix to postfix notation
+ *
+ */ 
 void InfixToPostfix(int option) {
 
-    unsigned int i;
-    unsigned char var; 
-    unsigned char exp[yyleng];   
-    char aux;
-    int varr = 0;
-    int c = 0;
+    unsigned int i, varr;
+    unsigned char var, aux, exp[yyleng];    
 
     switch (option)
     {
@@ -90,7 +226,7 @@ void InfixToPostfix(int option) {
                     }
                 }
                 
-                printf("postfix => ");    //imprimir exp en postfix
+                printf("\n postfix => ");    //imprimir exp en postfix
                 for (i = 0; i < postfixExp.n; i++)
                 {
                     printf("%d ", postfixExp.expression[i]);
@@ -99,21 +235,23 @@ void InfixToPostfix(int option) {
             break;
 
         case 1:     // caso variable ( v_{1} ... v_{32} )
+            var = 0; 
+            i = 0;
             strcpy(exp, yytext);
+
             do
             {
-                aux = exp[c];
+                aux = exp[i];
                 if (aux == '{')
-                    c++;
-                aux = exp[c];
+                    i++;
+                aux = exp[i];
 
                 if(aux >='0' && aux <='9')
-                    varr=varr*10+aux-48;
+                    var = var*10 + aux-48;
 
-                c++; 
-            } while ( aux!='}' );
+                i++; 
+            } while (aux != '}');
 
-            var = varr;
             AddItemToList(&postfixExp, var);
             break;
 
@@ -212,127 +350,6 @@ void InfixToPostfix(int option) {
                 Push(&stack, RIGHTARROW);
             }
     }
-}
-
-
-void AddItemToList(struct PostfixExpression *List, unsigned char c)
-{
-    List->n++;
-
-    if (List->expression == NULL)
-    {
-        List->expression = (unsigned char*) malloc(1 * sizeof(unsigned char));
-    }
-    else
-    {
-        List->expression = realloc(List->expression, List->n);
-    }
-
-    List->expression[List->n - 1] = c;
-}
-
-
-void AddDisjOrConj(unsigned char c)
-{   
-    unsigned char var;
-
-    if (StatusStack(&stack) != EMPTY)
-    {
-        if (stack.data[stack.top] == LEFTPARENTHESIS || stack.data[stack.top] == RIGHTARROW)
-        {
-            Push(&stack, c);
-        }
-        else    // sacamos la neg del top y la colocamos en la exp.
-        {
-            while (StatusStack(&stack) != EMPTY)
-            {   
-                if (stack.data[stack.top] != LEFTPARENTHESIS && stack.data[stack.top] != RIGHTARROW)
-                {
-                    var = Pop(&stack);
-                    AddItemToList(&postfixExp, var);
-                }
-                else
-                {
-                    Push(&stack, c);
-                    break;
-                }
-            }
-
-            if (StatusStack(&stack) == EMPTY)
-            {
-                Push(&stack, c);
-            }
-        }
-    }
-    else
-    {
-        Push(&stack, c);
-    }
-}
-
-
-/*
- *
- * Verifies Stack Status
- *
- */                            
-int StatusStack(struct Stack *a) {
-
-   if (a->top == -1)
-   {
-      return EMPTY;
-   }
-   return NORMAL;
-}
-
-/*
- *
- * Initializes Stack 
- *
- */
-void InitStack(struct Stack *a) {
-
-   a->top = -1;
-   a->n = 0;
-}
-
-/*
- *
- * Add Element to Stack
- *
- */
-void Push(struct Stack *a, unsigned char c) {
-
-    if (a->data == NULL)
-    {
-        a->data = (unsigned char*) malloc(1 * sizeof(unsigned char)); //mejorar
-    }
-    else
-    {
-        a->data = realloc(a->data, a->n + 1);
-    }
-
-    a->n++;
-    a->top++;
-    a->data[a->top] = c;
-}
- 
-/*
- *
- * Remove first Element
- *
- */
-unsigned char Pop(struct Stack *a) {
-
-   unsigned char c;
-
-   c = a->data[a->top];
-   a->top--;
-   a->n--;
-
-   a->data = realloc(a->data, a->n);
-
-   return c;
 }
 
 
