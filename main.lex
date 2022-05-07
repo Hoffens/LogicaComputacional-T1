@@ -58,8 +58,6 @@ void AddItemToList(struct PostfixExpression *List, unsigned char c);
 void AddDisjOrConj(unsigned char c);
 void InfixToPostfix(int option);
 void EvaluatePostfix();
-unsigned int valor(unsigned int fila, unsigned int var);
-
 
 %}
 
@@ -304,15 +302,7 @@ void InfixToPostfix(int option) {
                         AddItemToList(&postfixExp, var);
                     }
                 }
-                
-                printf("\n postfix => ");    //imprimir exp en postfix
-                for (i = 0; i < postfixExp.n; i++)
-                {
-                    printf("%d ", postfixExp.expression[i]);
-                }
-                printf("\n cant. variables: %d", variablesAmount);
-                printf("\n");
-                EvaluatePostfix();
+                EvaluatePostfix();  // terminamos de convertir la exp a postfix, ahora la evaluamos
             }
             break;
 
@@ -456,40 +446,33 @@ void InfixToPostfix(int option) {
  */ 
 void EvaluatePostfix()
 {
-    unsigned int i, row, pos, negAmount = 0, value1 = 0, value2 = 0, value3 = 0;
+    unsigned int i, row, pos, negAmount, value1, value2, value3, trueAmount, falseAmount, isContingency, aux;
     unsigned long rowsAmount;
     unsigned char c;
 
+    negAmount = 0;
     rowsAmount = (unsigned long)pow(2, variablesAmount);   // cant. de filas de la tabla de verdad
-
-    // recorremos toda la expresion en postfix
-    /*
-    for (int i = 0; i < rowsAmount; i++)
-    {
-        for (int j = 0; j < variablesAmount; j++)
-        {
-            printf("%d ", i >> j & 1);
-            //printf("%d \n ", i >> j);
-        }
-        printf("\n");
-    }
-        printf("\n");
-        */
+    
     for (i = 0; i < postfixExp.n; i++)
     {
         value1 = 0;
         value2 = 0;
         value3 = 0;
+
         if (postfixExp.expression[i] < NEG)     // si el simbolo es operando
         {   
-            unsigned int pos;
-
             if (postfixExp.expression[i] == variablesAmount)
+            {
                 pos = 0;
+            }
             else if (postfixExp.expression[i] - 1 == 0)
+            {
                 pos = variablesAmount - 1;
+            }
             else
+            {
                 pos = postfixExp.expression[i] - 1;
+            }
 
             if (negAmount > 0 && negAmount % 2 != 0)
             {
@@ -519,7 +502,6 @@ void EvaluatePostfix()
         }
         else    // si el simbolo es un operador
         {
-            value3 = 0;
             if (postfixExp.expression[i] == NEG)
             {
                 if (StatusStackValue(&stackValue) != EMPTY)
@@ -570,7 +552,9 @@ void EvaluatePostfix()
                         if (value2 & (1 << row)) // si el bit en la posicion row de value2 está encendido
                         {
                             if (!(value1 & (1 << row))) // si el bit en la posicion row de value1 esta apagado
+                            {
                                 value3 = value3 ^ (1 << row);   // apagamos el bit en posicion row
+                            }
                         }
                     }
                     PushStackValue(&stackValue, value3);
@@ -579,89 +563,110 @@ void EvaluatePostfix()
         }
     }
     value3 = PopStackValue(&stackValue);
-    i = 0;
-    int x = 0;
-    int y = 0;
+
+    trueAmount = 0;
+    falseAmount = 0;
+    isContingency = 0;
+
     printf("\n");
 
-    for (int j = 0; j < rowsAmount; j++)
+    if(isVerboseMode)
     {
-        printf("%d ", value3 >> j & 1);
-        //printf("%d \n ", i >> j);
+        for(i = variablesAmount; i > 0; i--)
+        {
+            printf("%d ", i);
+        }
+        printf("RESULT: \n");
     }
 
-    printf("\n");
-
     for (row = 0; row < rowsAmount; row++)
-    {   
-        if (value3 & (1 << row)) // si el bit está encendido
-        {   
-            if (x > 0)
+    {
+        if(isVerboseMode)
+        {
+            for (int j = 0; j < variablesAmount; j++)
             {
-                printf("Contingencia");
-                y = 1;
-                break;
+                if(row >> j & 1)
+                {
+                    printf("%c ", 'T');
+                }
+                else
+                {
+                    printf("%c ", 'F');
+                }   
+            }
+        }
+        
+        aux = value3 >> (rowsAmount-(1+row)) & 1;
+
+        if(isVerboseMode)
+        {
+            if (aux)
+            {
+                printf("  %c ", 'T');
             }
             else
             {
-                i++;    // cantidad de verdaderos            
+                printf("  %c ", 'F');
             }
+            printf("\n");
+        }
+
+        if (!isContingency)
+        {
+            if (aux)
+            {
+                trueAmount++;
+            }
+            else
+            {
+                falseAmount++;
+            }
+        }
+            
+
+        if (!isContingency && trueAmount && falseAmount)
+        {
+            isContingency++;
+        }
+    }
+    
+    if (isContingency)
+    {
+        printf("\nContingencia \n");
+    }
+    else 
+    {
+        if (trueAmount && !falseAmount)
+        {
+            printf("\nTautología \n\n");
         }
         else
         {
-            if (i > 0)
-            {
-                printf("Contingencia");
-                y = 1;
-                break;
-            }
-            else
-            {
-                x++;
-            }
+            printf("\nContradicción \n\n");
         }
     }
-    if (y != 1)
-        if (i > x)
-            printf("Tautología");
-        else
-            printf("Contradicción");
 }
 
-
-unsigned int valor(unsigned int fila, unsigned int var){
-    unsigned int val=0;
-    val=(~val-pow(2 ,var));
-    if(~val & fila)
-        return 1;
-    return 0;
-}
 
 /*
  *
  * main function
  *
  */
- 
-
-int main(int argc, char *argv[]) {
-    //EvaluatePostfix(arg) // S o V
-        
-        
-        
-            if(argv [1][0]=='-'){
-                if(argv [1][1]=='S')
-                    isVerboseMode=0;
-                if(argv [1][1]=='V')    
-                    isVerboseMode=1;
-                    }
-        
-    printf("verboso: %d \n", isVerboseMode);
+int main(int argc, char *argv[]) { 
+    if (argv [1][0] == '-')
+    {
+        if (argv [1][1] == 'S')
+        {
+            isVerboseMode = 0;
+        }
+        if (argv [1][1] == 'V')    
+        {
+            isVerboseMode = 1;
+        }
+    }
     InitStack(&stack);
     InitStackValue(&stackValue);
     yylex();
     return 0;
 }  
-
-
-
